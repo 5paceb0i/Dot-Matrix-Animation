@@ -40,6 +40,36 @@ const animations: Animation[] = [
     ],
   },
   {
+    name: 'Wave Negative',
+    frames: [
+      [
+        [false, true, true],
+        [true, true, true],
+        [true, true, true],
+      ],
+      [
+        [true, false, true],
+        [false, true, true],
+        [true, true, true],
+      ],
+      [
+        [true, true, false],
+        [true, false, true],
+        [false, true, true],
+      ],
+      [
+        [true, true, true],
+        [true, true, false],
+        [true, false, true],
+      ],
+      [
+        [true, true, true],
+        [true, true, true],
+        [true, true, false],
+      ],
+    ],
+  },
+  {
     name: 'Spinner',
     frames: [
       [
@@ -419,6 +449,37 @@ const animations: Animation[] = [
 
 ];
 
+// Per-animation default settings
+interface AnimationDefaults {
+  speed?: number;
+  easeInDuration?: number;
+  easeOutDuration?: number;
+}
+
+const animationDefaults: Record<string, AnimationDefaults> = {
+  'Wave Negative': {
+    speed: 200,
+    easeInDuration: 750,
+    easeOutDuration: 200,
+  },
+  'Cross': {
+    speed: 300,
+    easeInDuration: 200,
+    easeOutDuration: 500,
+  },
+  'Diamond': {
+    speed: 600,
+    easeInDuration: 150,
+    easeOutDuration: 600,
+  },
+  'Burst': {
+    speed: 250,
+    easeInDuration: 150,
+    easeOutDuration: 600,
+  },
+  // Default values for all other animations are defined in the component state
+};
+
 export function DotMatrix() {
   const [currentAnimation, setCurrentAnimation] = useState(0);
   const [currentFrame, setCurrentFrame] = useState(0);
@@ -443,6 +504,24 @@ export function DotMatrix() {
     document.documentElement.classList.add('dark');
   }, []);
 
+  // Apply per-animation default settings
+  useEffect(() => {
+    const animationName = animations[currentAnimation].name;
+    const defaults = animationDefaults[animationName];
+    
+    if (defaults) {
+      if (defaults.speed !== undefined) setSpeed(defaults.speed);
+      if (defaults.easeInDuration !== undefined) setEaseInDuration(defaults.easeInDuration);
+      if (defaults.easeOutDuration !== undefined) setEaseOutDuration(defaults.easeOutDuration);
+    } else {
+      // Apply global defaults for animations without custom settings
+      setSpeed(250);
+      setEaseInDuration(150);
+      setEaseOutDuration(600);
+    }
+  }, [currentAnimation]);
+
+
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentFrame((prev) => (prev + 1) % animations[currentAnimation].frames.length);
@@ -463,7 +542,7 @@ export function DotMatrix() {
 
   const generatedCSS = useMemo(() => {
     const animation = animations[currentAnimation];
-    const animationName = animation.name.toLowerCase();
+    const animationName = animation.name.toLowerCase().replace(/\s+/g, '-');
     const bgColor = '#0a0a0a'; // Always dark for exported CSS
     
     // Generate keyframes for each dot individually with custom easing
