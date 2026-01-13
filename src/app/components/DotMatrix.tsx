@@ -498,6 +498,30 @@ export function DotMatrix() {
   const [enableScale, setEnableScale] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [showCopyNotification, setShowCopyNotification] = useState(false);
+  
+  // Custom animation states
+  const [customFrames, setCustomFrames] = useState<GridState[]>([
+    // Default frame 1 - corners
+    [
+      [true, false, true],
+      [false, false, false],
+      [true, false, true],
+    ],
+    // Default frame 2 - all off
+    [
+      [false, false, false],
+      [false, false, false],
+      [false, false, false],
+    ],
+    // Default frame 3 - center dot
+    [
+      [false, false, false],
+      [false, true, false],
+      [false, false, false],
+    ],
+  ]);
+  const [isCustomPanelOpen, setIsCustomPanelOpen] = useState(false);
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState(true);
 
   useEffect(() => {
     // Always keep page in dark mode
@@ -506,6 +530,14 @@ export function DotMatrix() {
 
   // Apply per-animation default settings
   useEffect(() => {
+    // Skip for custom animation
+    if (currentAnimation === animations.length) {
+      setSpeed(250);
+      setEaseInDuration(150);
+      setEaseOutDuration(600);
+      return;
+    }
+    
     const animationName = animations[currentAnimation].name;
     const defaults = animationDefaults[animationName];
     
@@ -523,14 +555,19 @@ export function DotMatrix() {
 
 
   useEffect(() => {
+    if (!isPreviewPlaying) return;
+    
     const interval = setInterval(() => {
-      setCurrentFrame((prev) => (prev + 1) % animations[currentAnimation].frames.length);
+      setCurrentFrame((prev) => {
+        const totalFrames = currentAnimation === animations.length ? customFrames.length : animations[currentAnimation].frames.length;
+        return (prev + 1) % totalFrames;
+      });
     }, speed);
 
     return () => clearInterval(interval);
-  }, [currentAnimation, speed]);
+  }, [currentAnimation, speed, customFrames, isPreviewPlaying]);
 
-  const grid = animations[currentAnimation].frames[currentFrame];
+  const grid = currentAnimation === animations.length ? customFrames[currentFrame] : animations[currentAnimation].frames[currentFrame];
 
   // Helper function to convert hex to RGBA
   const hexToRgba = (hex: string, alpha: number): string => {
@@ -541,7 +578,11 @@ export function DotMatrix() {
   };
 
   const generatedCSS = useMemo(() => {
-    const animation = animations[currentAnimation];
+    // Handle custom animation
+    const isCustom = currentAnimation === animations.length;
+    const animation = isCustom 
+      ? { name: 'Custom', frames: customFrames }
+      : animations[currentAnimation];
     const animationName = animation.name.toLowerCase().replace(/\s+/g, '-');
     const bgColor = '#0a0a0a'; // Always dark for exported CSS
     
@@ -683,7 +724,7 @@ export function DotMatrix() {
       `</div>`;
 
     return `${css}\n\n${html}`;
-  }, [currentAnimation, dotSize, speed, dotColor, dotOpacity, shadowColor, glowOpacity, glowSpread, inactiveDotColor, borderRadius, spacing, easeInDuration, easeOutDuration, enableScale]);
+  }, [currentAnimation, dotSize, speed, dotColor, dotOpacity, shadowColor, glowOpacity, glowSpread, inactiveDotColor, borderRadius, spacing, easeInDuration, easeOutDuration, enableScale, customFrames]);
 
   // Split CSS and HTML from generated code
   const cssCode = useMemo(() => {
@@ -1006,6 +1047,8 @@ export function DotMatrix() {
                   onClick={() => {
                     setCurrentAnimation(index);
                     setCurrentFrame(0);
+                    setIsCustomPanelOpen(false);
+                    setIsPreviewPlaying(true); // Auto-resume when switching from custom
                   }}
                   className={`px-4 py-2 rounded-lg text-left transition-all ${
                     currentAnimation === index
@@ -1016,6 +1059,24 @@ export function DotMatrix() {
                   {animation.name}
                 </button>
               ))}
+              {/* Custom Animation Button */}
+              <button
+                onClick={() => {
+                  setCurrentAnimation(animations.length);
+                  setCurrentFrame(0);
+                  setIsCustomPanelOpen(true);
+                }}
+                className={`px-4 py-2 rounded-lg text-left transition-all ${
+                  currentAnimation === animations.length
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-secondary text-secondary-foreground hover:bg-accent'
+                }`}
+                style={{
+                  border: currentAnimation === animations.length ? 'none' : '2px dotted rgba(255, 255, 255, 0.4)',
+                }}
+              >
+                Custom
+              </button>
             </div>
           </div>
           <div className="flex flex-col items-center gap-6">
@@ -1088,8 +1149,8 @@ export function DotMatrix() {
 
             {/* Animation Info */}
             <div className="text-center text-muted-foreground">
-              <p className="font-semibold">{animations[currentAnimation].name} Animation</p>
-              <p className="text-sm">Frame {currentFrame + 1} of {animations[currentAnimation].frames.length}</p>
+              <p className="font-semibold">{currentAnimation === animations.length ? 'Custom' : animations[currentAnimation].name} Animation</p>
+              <p className="text-sm">Frame {currentFrame + 1} of {currentAnimation === animations.length ? customFrames.length : animations[currentAnimation].frames.length}</p>
             </div>
           </div>
         </div>
@@ -1135,6 +1196,223 @@ export function DotMatrix() {
           </div>
         </div>
       </div>
+
+
+      {/* Custom Animation Panel */}
+      <div 
+        className="fixed bottom-0 left-0 right-0 bg-card/10 border-t-2 shadow-2xl backdrop-blur-xl transition-all duration-300 ease-out z-50"
+        style={{
+          height: '240px',
+          opacity: isCustomPanelOpen ? 1 : 0,
+          transform: isCustomPanelOpen ? 'translateY(-8px)' : 'translateY(0)',
+          filter: isCustomPanelOpen ? 'blur(0)' : 'blur(8px)',
+          pointerEvents: isCustomPanelOpen ? 'auto' : 'none',
+        }}
+      >
+          <div className="h-full flex flex-col p-4">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-4">
+                <h3 className="text-lg font-semibold">Custom Animation Editor</h3>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsPreviewPlaying(!isPreviewPlaying)}
+                    className="flex items-center gap-1.5 px-3 py-1 text-sm rounded bg-accent text-accent-foreground hover:bg-primary hover:text-primary-foreground transition-colors"
+                  >
+                    {isPreviewPlaying ? (
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M5.5 3.5A1.5 1.5 0 0 1 7 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5zm5 0A1.5 1.5 0 0 1 12 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5z"/>
+                      </svg>
+                    ) : (
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/>
+                      </svg>
+                    )}
+                    <span>{isPreviewPlaying ? 'Pause' : 'Play'}</span>
+                  </button>
+
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const exportData = {
+                      name: 'Custom',
+                      frames: customFrames,
+                      settings: {
+                        dotSize,
+                        speed,
+                        dotColor,
+                        dotOpacity,
+                        shadowColor,
+                        glowOpacity,
+                        glowSpread,
+                        inactiveDotColor,
+                        borderRadius,
+                        spacing,
+                        easeInDuration,
+                        easeOutDuration,
+                        enableScale,
+                      }
+                    };
+                    const dataStr = JSON.stringify(exportData, null, 2);
+                    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                    const url = URL.createObjectURL(dataBlob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = 'custom-animation.json';
+                    link.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1 text-sm rounded bg-accent text-accent-foreground hover:bg-primary hover:text-primary-foreground transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  <span>Download</span>
+                </button>
+                <label className="flex items-center gap-1.5 px-3 py-1 text-sm rounded bg-accent text-accent-foreground hover:bg-primary hover:text-primary-foreground transition-colors cursor-pointer">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                  </svg>
+                  <span>Import</span>
+                  <input
+                    type="file"
+                    accept=".json"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        try {
+                          const json = JSON.parse(event.target?.result as string);
+                          if (json.frames && Array.isArray(json.frames)) {
+                            setCustomFrames(json.frames);
+                            setCurrentFrame(0);
+                            
+                            // Restore settings if they exist
+                            if (json.settings) {
+                              const s = json.settings;
+                              if (s.dotSize !== undefined) setDotSize(s.dotSize);
+                              if (s.speed !== undefined) setSpeed(s.speed);
+                              if (s.dotColor !== undefined) setDotColor(s.dotColor);
+                              if (s.dotOpacity !== undefined) setDotOpacity(s.dotOpacity);
+                              if (s.shadowColor !== undefined) setShadowColor(s.shadowColor);
+                              if (s.glowOpacity !== undefined) setGlowOpacity(s.glowOpacity);
+                              if (s.glowSpread !== undefined) setGlowSpread(s.glowSpread);
+                              if (s.inactiveDotColor !== undefined) setInactiveDotColor(s.inactiveDotColor);
+                              if (s.borderRadius !== undefined) setBorderRadius(s.borderRadius);
+                              if (s.spacing !== undefined) setSpacing(s.spacing);
+                              if (s.easeInDuration !== undefined) setEaseInDuration(s.easeInDuration);
+                              if (s.easeOutDuration !== undefined) setEaseOutDuration(s.easeOutDuration);
+                              if (s.enableScale !== undefined) setEnableScale(s.enableScale);
+                            }
+                          } else {
+                            alert('Invalid JSON format. Expected format: { "frames": [...], "settings": {...} }');
+                          }
+                        } catch (err) {
+                          alert('Error parsing JSON file');
+                        }
+                      };
+                      reader.readAsText(file);
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+                <button
+                  onClick={() => setIsCustomPanelOpen(false)}
+                  className="flex items-center gap-1.5 px-3 py-1 text-sm rounded bg-secondary text-secondary-foreground hover:bg-primary hover:text-primary-foreground transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  <span>Close</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Frame Editor */}
+            <div className="flex-1 overflow-x-auto overflow-y-hidden">
+              <div className="flex gap-4 h-full pb-2">
+                {customFrames.map((frame, frameIndex) => (
+                  <div
+                    key={frameIndex}
+                    className="flex-shrink-0 flex flex-col items-center gap-2"
+                  >
+                    <div className="text-xs text-muted-foreground">Frame {frameIndex + 1}</div>
+                    {/* 3x3 Grid Editor */}
+                    <div
+                      className="grid grid-cols-3 gap-1 p-2 rounded-lg border-2 transition-all"
+                      style={{
+                        backgroundColor: '#1a1a1a',
+                        borderColor: currentFrame === frameIndex ? '#14ff9e' : 'rgba(255, 255, 255, 0.15)',
+                      }}
+                    >
+                      {frame.map((row, rowIndex) =>
+                        row.map((isActive, colIndex) => (
+                          <button
+                            key={`${frameIndex}-${rowIndex}-${colIndex}`}
+                            onClick={() => {
+                              const newFrames = [...customFrames];
+                              newFrames[frameIndex][rowIndex][colIndex] = !isActive;
+                              setCustomFrames(newFrames);
+                            }}
+                            className="w-6 h-6 rounded transition-all hover:scale-110"
+                            style={{
+                              backgroundColor: isActive ? dotColor : inactiveDotColor,
+                              boxShadow: isActive ? `0 0 6px 0 ${shadowColor}` : 'none',
+                            }}
+                          />
+                        ))
+                      )}
+                    </div>
+                    {/* Delete Button */}
+                    <button
+                      onClick={() => {
+                        if (customFrames.length > 1) {
+                          const newFrames = customFrames.filter((_, idx) => idx !== frameIndex);
+                          setCustomFrames(newFrames);
+                          if (currentFrame >= newFrames.length) {
+                            setCurrentFrame(newFrames.length - 1);
+                          }
+                        }
+                      }}
+                      disabled={customFrames.length === 1}
+                      className="px-2 py-1 text-xs rounded bg-red-500/20 text-red-400 hover:bg-red-500/40 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+                
+                {/* Add Frame Tile */}
+                <div className="flex-shrink-0 flex flex-col items-center gap-2">
+                  <div className="text-xs text-muted-foreground opacity-0">+</div>
+                  <button
+                    onClick={() => {
+                      const newFrame: GridState = [
+                        [false, false, false],
+                        [false, false, false],
+                        [false, false, false],
+                      ];
+                      setCustomFrames([...customFrames, newFrame]);
+                    }}
+                    className="flex items-center justify-center p-2 rounded-lg border-2 border-dashed border-primary/40 hover:border-primary hover:bg-primary/10 transition-all cursor-pointer"
+                    style={{
+                      width: '100px',
+                      height: '100px',
+                      backgroundColor: 'rgba(20, 255, 158, 0.05)',
+                    }}
+                  >
+                    <span className="text-xs text-primary font-medium">+ Add Frame</span>
+                  </button>
+                  <div className="px-2 py-1 text-xs opacity-0">·</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
       {/* Copy Notification */}
       {showCopyNotification && (
